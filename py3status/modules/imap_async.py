@@ -4,7 +4,7 @@ TODO: * fix all TODOs
       * MAIL_COUNT UPDATE IS NOT VISIBLE IN MAIN THREAD
       * no output to i3bar
       * instead of polling mail_{count,error}, use py3.update() -- From thread possible?
-      * instead of mail_error try to use py3.log() from thread
+      * instead of mail-error try to use py3.log() from thread
 Display number of unread messages from IMAP account.
 
 Configuration parameters:
@@ -42,7 +42,7 @@ from select import select
 from socket import error as socket_error
 from ssl import create_default_context
 STRING_UNAVAILABLE = 'N/A'
-
+import traceback
 
 class Py3status:
     """
@@ -81,7 +81,6 @@ class Py3status:
         # class variables:
         self.connection = None
         self.mail_count = None #TODO: this is updated, reset to None on fatal, kept as-is on abort
-        self.mail_error = None #for passing exceptions to main thread;  TODO: reset after being read; read often, so we don't miss anything; TODO: try to py3.log() from thread
         self.command_tag = 0  # IMAPcommands are tagged, so responses can be matched up to requests
         self.idle_thread = Thread()
 
@@ -135,7 +134,7 @@ class Py3status:
         if self.connection is None:
             self._connect()
         if self.connection.state is 'NONAUTH':
-            self.connection.login(user, password)
+            self.connection.login(self.user, self.password)
 
     def _check_mail_thread(self):
         while True:
@@ -144,16 +143,18 @@ class Py3status:
                 self.py3.log('set mail to '+str(self.mail_count))
                 #self.py3.update()
 
-                if _supports_idle(connection):#TODO: this has to be done in self._connect()!!!
-                    _idle()
-                    time.sleep(5)  # sleep a little if _idle() returns immediately (auth error, no network, etc)
+                #if _supports_idle(connection):#TODO: this has to be done in self._connect()!!!
+                if 'IDLE' in self.connection.capabilities:
+                    self._idle()
+                    sleep(5)  # sleep a little if _idle() returns immediately (auth error, no network, etc)
                 else:
-                    time.sleep(30)
+                    sleep(30)
             except (socket_error, imaplib.IMAP4.abort, imaplib.IMAP4.readonly) as e:
-                self.mail_error = {'msg': "Recoverable error - " + str(e), 'severity': 'WARNING'}
+                self.py3.log("Recoverable error - " + str(e), level=self.py3.LOG_WARNING)
                 _disconnect()
             except (imaplib.IMAP4.error, Exception) as e:
-                self.mail_error = {'msg': "Fatal error - " + str(e), 'severity': 'ERROR'}
+                self.py3.log(traceback.format_exc())
+                self.py3.log("Fatal error - " + str(e), level=self.py3.LOG_ERROR)
                 self.mail_count = None
                 _disconnect()
 
@@ -176,12 +177,12 @@ class Py3status:
             raise e
 
     # IMAP4rev1 IDLE {{{
-    def _timeoutread(socket, count, timeout):
+    def _timeoutread(self, socket, count, timeout):
         """
         a wrapper around select(2) and read(2), so we don't have to worry about
         dropping network connections; returns the data read or None on timeout
         """
-        import select
+        from select import select
 
         socket.settimeout(timeout)
         socket.setblocking(0)
@@ -219,17 +220,19 @@ class Py3status:
             socket.write(command_tag + b' IDLE\r\n')
             response = self._timeoutread(socket, 4096, 5)
             if response is None:
-                self.mail_error = {'msg': "While initializing IDLE: server didn't respond with '+ idling' in time", 'severity': 'ERROR'}
+                self.py3.log(
+                    "While initializing IDLE: server didn't respond with '+ idling' in time",
+                    level=self.py3.LOG_ERROR)
             else:
                 response = response.decode('ascii')
                 if not response.lower().startswith('+ idling'):
-                    self.mail_error = {'msg': "While initializing IDLE: " + str(e), 'severity': 'ERROR'}
+                    self.py3.log("While initializing IDLE: " + str(e), level=self.py3.LOG_ERROR)
 
             # wait for IDLE to return with mailbox updates:
             while True:
-                response = _timeoutread(socket,4096, timeout)
+                response = self._timeoutread(socket, 4096, self.cache_timeout)
                 if response is None:
-                    self.mail_error = {'msg': "IDLE timed out", 'severity': 'INFO'}
+                    self.py3.log("IDLE timed out")
                     break
                 else:
                     response = response.decode('ascii')
@@ -243,7 +246,8 @@ class Py3status:
             socket.write(b'DONE\r\n')  # important!
             response = self._timeoutread(socket, 4096, 5)
             if response is None:
-                self.mail_error = {'msg': "While terminating IDLE: server didn't respond with 'DONE' in time", 'severity': 'WARNING'}
+                self.py3.log("While terminating IDLE: server didn't respond with 'DONE' in time",
+                    level=self.py3.LOG_WARNING)
             else:
                 response = response.decode('ascii')
                 expected_response = (command_tag + b' OK').decode('ascii')
@@ -251,7 +255,7 @@ class Py3status:
                     # sometimes, more messages come in between reading and DONEing; so read them again
                     response = socket.read(4096).decode('ascii')
                 if not response.lower().startswith(expected_response.lower()):
-                    self.mail_error = {'msg': "While terminating IDLE: " + response, 'severity': 'WARNING'}
+                    self.py3.log("While terminating IDLE: " + response, level=self.py3.LOG_WARNING)
         # }}}
 
 
