@@ -87,7 +87,8 @@ class Py3status:
             raise ValueError("Unknown security protocol")
 
     def check_mail(self):
-        # TODO: start thread here; this will populate self.mail_count soon after
+        self.idle_thread = Thread(target=self._check_mail_thread, daemon=True)
+        self.idle_thread.start()
 
         response = {'cached_until': self.py3.time_in(self.cache_timeout)}
 
@@ -103,7 +104,7 @@ class Py3status:
         if self.mail_count == 0 and self.hide_if_zero:
             response['full_text'] = ''
         else:
-            response['full_text'] = self.py3.safe_format(self.format, {'unseen': mail_count})
+            response['full_text'] = self.py3.safe_format(self.format, {'unseen': self.mail_count})
 
         return response
 
