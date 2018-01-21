@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+TODO: * py3.log(level=LOG_ERROR) => py3.error()
 Display number of unread messages from IMAP account.
 
 Configuration parameters:
@@ -112,6 +113,15 @@ class Py3status:
             self.connection = imaplib.IMAP4(self.server, self.port)
             self.connection.starttls(create_default_context())
 
+        if self.use_idle is None:
+            supports_idle = 'IDLE' in self.connection.capabilities
+
+            self.use_idle = supports_idle
+            self.py3.log("Will use {}".format('idling' if self.use_idle else 'polling'))
+
+            if self.use_idle and not supports_idle:
+                self.py3.error("Server does not support IDLE")
+
     def _disconnect(self):
         try:
             if self.connection is not None:
@@ -135,9 +145,9 @@ class Py3status:
                 self._get_mail_count()  # populates self.mail_count
                 self.py3.update()
 
-                if 'IDLE' in self.connection.capabilities:
+                if self.use_idle:
+                    sleep(5)  # rate-limit in case of auth error, no network, etc. TODO: this is ugly 
                     self._idle()
-                    sleep(5)  # sleep a little if _idle() returns immediately (auth error, no network, etc) TODO: this is ugly 
                 else:
                     sleep(30)
             except (socket_error, imaplib.IMAP4.abort, imaplib.IMAP4.readonly) as e:
@@ -172,8 +182,6 @@ class Py3status:
         a wrapper around select(2) and read(2), so we don't have to worry about
         dropping network connections; returns the data read or None on timeout
         """
-        from select import select
-
         socket.settimeout(timeout)
         socket.setblocking(0)
 
