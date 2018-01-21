@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 TODO: * fix all TODOs
+      * MAIL_COUNT UPDATE IS NOT VISIBLE IN MAIN THREAD
       * no output to i3bar
       * instead of polling mail_{count,error}, use py3.update() -- From thread possible?
       * instead of mail_error try to use py3.log() from thread
