@@ -126,7 +126,12 @@ class Py3status:
         finally:
             connection = None
 
-    # Thread Functions {{{
+    def _login(self):
+        if self.connection is None:
+            self._connect()
+        if self.connection.state is 'NONAUTH':
+            self.connection.login(user, password)
+
     def _check_mail_thread(self):
         while True:
             try:
@@ -147,10 +152,7 @@ class Py3status:
 
     def _get_mail_count(self):
         try:
-            if self.connection is None:
-                self._connect()
-            if self.connection.state is 'NONAUTH':
-                self.connection.login(self.user, self.password)
+            self._login()
 
             mail_count = 0
             directories = self.mailbox.split(',')
@@ -166,6 +168,7 @@ class Py3status:
             self.mail_count = None
             raise e
 
+    # IMAP4rev1 IDLE {{{
     def _timeoutread(socket, count, timeout):
         """
         a wrapper around select(2) and read(2), so we don't have to worry about
@@ -197,10 +200,7 @@ class Py3status:
         socket = None
 
         try:
-            if self.connection is None:
-                self._connect()
-            if self.connection.state is 'NONAUTH':
-                self.connection.login(user, password)
+            self._login()
 
             self.command_tag = (self.command_tag + 1) % 1000
             command_tag = b'X'+bytes(str(self.command_tag).zfill(3), 'ascii')
