@@ -131,7 +131,7 @@ class Py3status:
         except:
             pass
         finally:
-            connection = None
+            self.connection = None
 
     def _login(self):
         if self.connection is None:
@@ -218,13 +218,11 @@ class Py3status:
             socket.write(command_tag + b' IDLE\r\n')
             response = self._timeoutread(socket, 4096, 5)
             if response is None:
-                self.py3.log(
-                    "While initializing IDLE: server didn't respond with '+ idling' in time",
-                    level=self.py3.LOG_ERROR)
+                raise imaplib.IMAP4.error("Server didn't respond to 'IDLE' in time");
             else:
                 response = response.decode('ascii')
                 if not response.lower().startswith('+ idling'):
-                    self.py3.log("While initializing IDLE: " + str(e), level=self.py3.LOG_ERROR)
+                    raise imaplib.IMAP4.error("While initializing IDLE: " + str(e))
 
             # wait for IDLE to return with mailbox updates:
             while True:
@@ -244,16 +242,19 @@ class Py3status:
             socket.write(b'DONE\r\n')  # important!
             response = self._timeoutread(socket, 4096, 5)
             if response is None:
-                self.py3.log("While terminating IDLE: server didn't respond with 'DONE' in time",
-                    level=self.py3.LOG_WARNING)
+                raise imaplib.IMAP4.abort("IDLE: Server didn't respond to 'DONE' in time")
             else:
                 response = response.decode('ascii')
                 expected_response = (command_tag + b' OK').decode('ascii')
                 if response.lower().startswith('* '.lower()):  # '* OK Still here', mostly
                     # if more messages come in between before sending DONE; read them again
-                    response = socket.read(4096).decode('ascii')
+                    response = self._timeoutread(socket, 4096, 5)
+                    if response is None:
+                        raise imaplib.IMAP4.abort(
+                            "IDLE: Server sent untagged response, but no 'OK' in time")
+                    response = response.decode('ascii')
                 if not response.lower().startswith(expected_response.lower()):
-                    self.py3.log("While terminating IDLE: " + response, level=self.py3.LOG_WARNING)
+                    raise imaplib.IMAP4.abort("While terminating IDLE: " + response)
         # }}}
 
 
