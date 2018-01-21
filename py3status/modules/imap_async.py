@@ -1,212 +1,255 @@
-#!/usr/bin/env python3
-# vim: foldmethod=marker
-
+# -*- coding: utf-8 -*-
 """
-IMAP IDLE exampe, using standard imaplib and implement IDLE ourselves
-TODO:
- * create py3status module to replace main-while
- * check python2 compatibility
-NOTES: 
- * the pullreq'd version can hang when the network drops out during
-   IDLEing. when select() times out, it'll try to write and read 'DONE' and
-   read 'OK' back, which it can't because the network's gone
-   solution: wrap _every_ read(2) call in select(2)
-"""
+TODO: * fix all TODOs
+      * instead of polling mail_{count,error}, use py3.update() -- From thread possible?
+      * instead of mail_error try to use py3.log() from thread
+Display number of unread messages from IMAP account.
 
+Configuration parameters:
+    allow_urgent: display urgency on unread messages (default False)
+    cache_timeout: refresh interval for this module (default 60)
+    criterion: status of emails to check for (default 'UNSEEN')
+    format: display format for this module (default 'Mail: {unseen}')
+    hide_if_zero: hide this module when no new mail (default False)
+    mailbox: name of the mailbox to check (default 'INBOX')
+    password: login password (default None)
+    port: number to use (default '993')
+    security: login authentication method: 'ssl' or 'starttls'
+        (startssl needs python 3.2 or later) (default 'ssl')
+    server: server to connect (default None)
+    use_idle: use IMAP4rev1 IDLE instead of polling; requires compatible
+        server; uses cache_timeout for IDLE's timeout; will auto detect
+        when set to None (default None)
+    user: login user (default None)
+
+Format placeholders:
+    {unseen} number of unread emails
+
+Color options:
+    color_new_mail: use color when new mail arrives, default to color_good
+
+@author obb, girst
+
+SAMPLE OUTPUT
+{'full_text': 'Mail: 36', 'color': '#00FF00'}
+"""
 import imaplib
-#from threading import Thread
-from ssl import create_default_context
+from threading import Thread
+from time import sleep
+from select import select
 from socket import error as socket_error
-#further down: import select in _timeoutread(), import time in "main", (import sys in helper)
+from ssl import create_default_context
+STRING_UNAVAILABLE = 'N/A'
 
-import sys
-def readconfig(configfile):
-    import configparser
-    config = configparser.ConfigParser()
-    config.read(configfile)
-    retval = dict()
-    retval['u'] = config['imap']['username']
-    retval['p'] = config['imap']['password']
-    retval['s'] = config['imap']['server']
-    return retval
 
-config = readconfig(sys.argv[1])
-
-# CONFIG
-criterion = 'UNSEEN'
-mailbox = 'INBOX'
-password = config['p']
-port = '993'
-security = 'ssl'
-server = config['s']
-user = config['u']
-timeout=120 #60  # for stuff we expect after a long time
-
-# STATE
-connection = None
-command_tag = 0
-#idle_thread
-
-# HELPER
-def eprint(*args, **kwargs):
-    import sys
-    print(*args, file=sys.stderr, **kwargs)
-    sys.stderr.flush()
-import time
-def dbg(msg):
-    eprint (time.strftime("%Y-%m-%d %H:%M:%S") + ' DEBUG: ' + str(msg), end='')
-
-# FUNS
-def _supports_idle(connection):  # todo: has to be called from _connect(), otherwise a working connection cannot be guaranteed
-    if connection is None: return False #temporary, see todo above
-    supports_idle = 'IDLE' in connection.capabilities
-    return supports_idle
-
-def _connect():
-    global connection
-    if security == "ssl":
-        connection = imaplib.IMAP4_SSL(server, port)
-    elif security == "starttls":
-        connection = imaplib.IMAP4(server, port)
-        connection.starttls(create_default_context())
-
-def _disconnect():
-    global connection
-    try:
-        if connection is not None:
-            if connection.state is 'SELECTED':
-                connection.close()
-            connection.logout()
-    except:
-        pass
-    finally:
-        connection = None
-
-def _get_mail_count():
-    global connection
-    try:
-        if connection is None:
-            _connect()
-        if connection.state is 'NONAUTH':
-            connection.login(user, password)
-
-        tmp_mail_count = 0
-        directories = mailbox.split(',')
-
-        for directory in directories:
-            connection.select(directory)
-            criterion_response = connection.search(None, criterion)
-            mails = criterion_response[1][0].split()
-            tmp_mail_count += len(mails)
-
-        return tmp_mail_count
-    except (socket_error, imaplib.IMAP4.abort, imaplib.IMAP4.readonly) as e:
-        eprint(time.strftime("%Y-%m-%d %H:%M") + " WARNING: Recoverable error - " + str(e))
-        _disconnect()
-    except (imaplib.IMAP4.error, Exception) as e:
-        eprint (time.strftime("%Y-%m-%d %H:%M") + " ERROR: Fatal error - " + str(e))
-        _disconnect()
-        #mail_count = None
-
-def _timeoutread(socket, count, timeout):
+class Py3status:
     """
-    a wrapper around select(2) and read(2), so we don't have to worry about dropping network connections
-    returns the data read or None on timeout
     """
-    import select
+    # available configuration parameters
+    allow_urgent = False
+    cache_timeout = 60
+    criterion = 'UNSEEN'
+    format = 'Mail: {unseen}'
+    hide_if_zero = False
+    mailbox = 'INBOX'
+    password = None
+    port = '993'
+    security = 'ssl'
+    server = None
+    use_idle = None
+    user = None
 
-    socket.settimeout(timeout)
-    socket.setblocking(0)  # so we can timeout
+    class Meta:
+        deprecated = {
+            'rename': [
+                {
+                    'param': 'new_mail_color',
+                    'new': 'color_new_mail',
+                    'msg': 'obsolete parameter use `color_new_mail`',
+                },
+                {
+                    'param': 'imap_server',
+                    'new': 'server',
+                    'msg': 'obsolete parameter use `server`',
+                },
+            ],
+        }
 
-    eprint('select:', end="")
-    if timeout > 0:
-        ready = select.select([socket], [], [], timeout)
-    else:
-        ready = select.select([socket], [], [])
+    def post_config_hook(self):
+        # class variables:
+        self.connection = None
+        self.mail_count = None #TODO: this is updated, reset to None on fatal, kept as-is on abort
+        self.mail_error = None #for passing exceptions to main thread;  TODO: reset after being read; read often, so we don't miss anything; TODO: try to py3.log() from thread
+        self.command_tag = 0  # IMAPcommands are tagged, so responses can be matched up to requests
+        self.idle_thread = Thread()
 
-    socket.setblocking(1)
+        if self.security not in ["ssl", "starttls"]:
+            raise ValueError("Unknown security protocol")
 
-    if ready[0]:
-        eprint('OK; ', end="")
-        response = socket.read(count)
-        eprint(str(response))
-        return response
-    else:
-        eprint('TIMEOUT')
-        return None
+    def check_mail(self):
+        # TODO: start thread here; this will populate self.mail_count soon after
 
-def _idle():
-    """
-    since imaplib doesn't support IMAP4r1 IDLE, we'll do it by hand
-    will return on updates on the mailbox[0], or when a timeout is reached.
-    """
-    global connection
-    global command_tag
-    global timeout
-    short_timeout = 5  # to be used when reading stuff we expect immediately
+        response = {'cached_until': self.py3.time_in(self.cache_timeout)}
 
-    socket = None
+        if self.mail_count is None: #TODO: this should hide it, as there is no data (yet)
+            response['color'] = self.py3.COLOR_BAD,
+            response['full_text'] = self.py3.safe_format(
+                self.format, {'unseen': STRING_UNAVAILABLE})
+        elif self.mail_count > 0:
+            response['color'] = self.py3.COLOR_NEW_MAIL or self.py3.COLOR_GOOD
+            if self.allow_urgent:
+                response['urgent'] = True
 
-    try:
-        if connection is None:
-            dbg('connect(): '); _connect(); eprint('OK')
-        if connection.state is 'NONAUTH':
-            dbg('login(): '); connection.login(user, password); eprint('OK')
-
-        command_tag = (command_tag + 1) % 1000
-        command_tag_full = b'X'+bytes(str(command_tag).zfill(3), 'ascii')
-        directories = mailbox.split(',')
-        # make sure we have selected something before idling:
-        dbg('select(mailbox): '); connection.select(directories[0]); eprint('OK')
-        socket = connection.socket()
-
-        dbg('write(IDLE): '); socket.write(command_tag_full + b' IDLE\r\n'); eprint('OK')
-        dbg('read(+idling): ')
-        response = _timeoutread(socket, 4096, short_timeout)
-        if response is None:
-            #raise imaplib.IMAP4.error("While initializing IDLE: server didn't respond with '+ idling' in time")
-            dbg("server didn't respond with '+ idling' in time\n")
+        if self.mail_count == 0 and self.hide_if_zero:
+            response['full_text'] = ''
         else:
-         response = response.decode('ascii')
-         if not response.lower().startswith('+ idling'):
-             raise imaplib.IMAP4.error("While initializing IDLE: " + str(e))
+            response['full_text'] = self.py3.safe_format(self.format, {'unseen': mail_count})
 
-        # wait for IDLE to return
+        return response
+
+    def _connect(self):
+        if self.security == "ssl":
+            self.connection = imaplib.IMAP4_SSL(self.server, self.port)
+        elif self.security == "starttls":
+            self.connection = imaplib.IMAP4(self.server, self.port)
+            self.connection.starttls(create_default_context())
+
+    def _disconnect(self):
+        try:
+            if self.connection is not None:
+                if self.connection.state is 'SELECTED':
+                    self.connection.close()
+                self.connection.logout()
+        except:
+            pass
+        finally:
+            connection = None
+
+    # Thread Functions {{{
+    def _check_mail_thread(self):
         while True:
-            dbg('read(changes): '); 
-            response = _timeoutread(socket,4096, timeout)
+            try:
+                _get_mail_count()  # populates self.mail_count
+
+                if _supports_idle(connection):#TODO: this has to be done in self._connect()!!!
+                    _idle()
+                    time.sleep(5)  # sleep a little if _idle() returns immediately (auth error, no network, etc)
+                else:
+                    time.sleep(30)
+            except (socket_error, imaplib.IMAP4.abort, imaplib.IMAP4.readonly) as e:
+                self.mail_error = {'msg': "Recoverable error - " + str(e), 'severity': 'WARNING'}
+                _disconnect()
+            except (imaplib.IMAP4.error, Exception) as e:
+                self.mail_error = {'msg': "Fatal error - " + str(e), 'severity': 'ERROR'}
+                self.mail_count = None
+                _disconnect()
+
+    def _get_mail_count(self):
+        try:
+            if self.connection is None:
+                self._connect()
+            if self.connection.state is 'NONAUTH':
+                self.connection.login(self.user, self.password)
+
+            mail_count = 0
+            directories = self.mailbox.split(',')
+
+            for directory in directories:
+                self.connection.select(directory)
+                criterion_response = self.connection.search(None, self.criterion)
+                mails = criterion_response[1][0].split()
+                mail_count += len(mails)
+
+            self.mail_count = mail_count
+        except (imaplib.IMAP4.error, Exception) as e:
+            self.mail_count = None
+            raise e
+
+    def _timeoutread(socket, count, timeout):
+        """
+        a wrapper around select(2) and read(2), so we don't have to worry about
+        dropping network connections; returns the data read or None on timeout
+        """
+        import select
+
+        socket.settimeout(timeout)
+        socket.setblocking(0)
+
+        if timeout > 0:
+            ready = select([socket], [], [], timeout)
+        else:
+            ready = select([socket], [], [])
+
+        socket.setblocking(1)
+
+        if ready[0]:
+            response = socket.read(count)
+            return response
+        else:
+            return None
+
+    def _idle(self):
+        """
+        since imaplib doesn't support IMAP4rev1 IDLE, we'll do it by hand
+        will return on updates in the mailbox[0], or when a timeout is reached.
+        """
+        socket = None
+
+        try:
+            if self.connection is None:
+                self._connect()
+            if self.connection.state is 'NONAUTH':
+                self.connection.login(user, password)
+
+            self.command_tag = (self.command_tag + 1) % 1000
+            command_tag = b'X'+bytes(str(self.command_tag).zfill(3), 'ascii')
+            directories = self.mailbox.split(',')
+            # make sure we have selected something before idling:
+            self.connection.select(directories[0])
+            socket = self.connection.socket()
+
+            socket.write(command_tag + b' IDLE\r\n')
+            response = self._timeoutread(socket, 4096, 5)
             if response is None:
-                eprint ("INFO: timed out")
-                break
+                self.mail_error = {'msg': "While initializing IDLE: server didn't respond with '+ idling' in time", 'severity': 'ERROR'}
             else:
                 response = response.decode('ascii')
-                if response.lower().startswith('* OK'.lower()):  # '* OK Still here' shouldn't terminate
-                    continue
-                else:
+                if not response.lower().startswith('+ idling'):
+                    self.mail_error = {'msg': "While initializing IDLE: " + str(e), 'severity': 'ERROR'}
+
+            # wait for IDLE to return with mailbox updates:
+            while True:
+                response = _timeoutread(socket,4096, timeout)
+                if response is None:
+                    self.mail_error = {'msg': "IDLE timed out", 'severity': 'INFO'}
                     break
+                else:
+                    response = response.decode('ascii')
+                    if response.lower().startswith('* OK'.lower()):
+                        continue  # don't terminate on continuation message
+                    else:
+                        break
 
-    finally:
-        if socket is None: return
-        dbg('write(DONE): '); socket.write(b'DONE\r\n'); eprint('OK')  # important!
-        dbg('read(Axxx OK): '); 
-        response = _timeoutread(socket, 4096, short_timeout)
-        if response is None:
-            raise imaplib.IMAP4.abort("While terminating IDLE: server didn't respond with 'DONE' in time")
-        response = response.decode('ascii')
-        expected_response = (command_tag_full + b' OK').decode('ascii')
-        if response.lower().startswith('* '.lower()):  # '* OK Still here', mostly
-            # sometimes, more messages come in between reading and DONEing; so read them again
-            response = socket.read(4096).decode('ascii')
-        if not response.lower().startswith(expected_response.lower()):
-            raise imaplib.IMAP4.abort("While terminating IDLE: " + response)
+        finally:
+            if socket is None: return
+            socket.write(b'DONE\r\n')  # important!
+            response = self._timeoutread(socket, 4096, 5)
+            if response is None:
+                self.mail_error = {'msg': "While terminating IDLE: server didn't respond with 'DONE' in time", 'severity': 'WARNING'}
+            else:
+                response = response.decode('ascii')
+                expected_response = (command_tag + b' OK').decode('ascii')
+                if response.lower().startswith('* '.lower()):  # '* OK Still here', mostly
+                    # sometimes, more messages come in between reading and DONEing; so read them again
+                    response = socket.read(4096).decode('ascii')
+                if not response.lower().startswith(expected_response.lower()):
+                    self.mail_error = {'msg': "While terminating IDLE: " + response, 'severity': 'WARNING'}
+        # }}}
 
-# main:
-import sys
-while True:
-    print (_get_mail_count())
-    sys.stdout.flush()
-    if _supports_idle(connection):
-        _idle()
-        time.sleep(5)  # sleep a little if _idle() returns immediately (auth error, no network, etc)
-    else:
-        time.sleep(30)
+
+if __name__ == "__main__":
+    """
+    Run module in test mode.
+    """
+    from py3status.module_test import module_test
+    module_test(Py3status)
