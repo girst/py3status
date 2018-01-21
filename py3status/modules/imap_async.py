@@ -141,9 +141,8 @@ class Py3status:
             try:
                 self._get_mail_count()  # populates self.mail_count
                 self.py3.log('set mail to '+str(self.mail_count))
-                #self.py3.update()
+                self.py3.update()
 
-                #if _supports_idle(connection):#TODO: this has to be done in self._connect()!!!
                 if 'IDLE' in self.connection.capabilities:
                     self._idle()
                     sleep(5)  # sleep a little if _idle() returns immediately (auth error, no network, etc)
