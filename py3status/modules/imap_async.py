@@ -87,8 +87,11 @@ class Py3status:
             raise ValueError("Unknown security protocol")
 
     def check_mail(self):
-        self.idle_thread = Thread(target=self._check_mail_thread, daemon=True)
-        self.idle_thread.start()
+        self.py3.log('checking mail')
+        #if self.use_idle is not False:
+        if not self.idle_thread.is_alive():
+            self.idle_thread = Thread(target=self._check_mail_thread, daemon=True)
+            self.idle_thread.start()
 
         response = {'cached_until': self.py3.time_in(self.cache_timeout)}
 
@@ -130,7 +133,9 @@ class Py3status:
     def _check_mail_thread(self):
         while True:
             try:
-                _get_mail_count()  # populates self.mail_count
+                self._get_mail_count()  # populates self.mail_count
+                self.py3.log('set mail to '+str(self.mail_count))
+                #self.py3.update()
 
                 if _supports_idle(connection):#TODO: this has to be done in self._connect()!!!
                     _idle()
