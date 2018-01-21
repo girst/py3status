@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-TODO: * py3.log(level=LOG_ERROR) => py3.error()
 Display number of unread messages from IMAP account.
 
 Configuration parameters:
@@ -77,6 +76,7 @@ class Py3status:
         # class variables:
         self.connection = None
         self.mail_count = None
+        self.mail_error = None  # cannot throw self.py3.error from thread
         self.command_tag = 0  # IMAPcommands are tagged, so responses can be matched up to requests
         self.idle_thread = Thread()
 
@@ -87,6 +87,9 @@ class Py3status:
         if not self.idle_thread.is_alive():
             self.idle_thread = Thread(target=self._check_mail_thread, daemon=True)
             self.idle_thread.start()
+        if self.mail_error is not None:
+            self.py3.log(self.mail_error, level=self.py3.LOG_ERROR)
+            self.py3.error(self.mail_error, timeout=self.py3.CACHE_FOREVER)
 
         response = {'cached_until': self.py3.time_in(self.cache_timeout)}
 
@@ -154,7 +157,7 @@ class Py3status:
                 self.py3.log("Recoverable error - " + str(e), level=self.py3.LOG_WARNING)
                 _disconnect()
             except (imaplib.IMAP4.error, Exception) as e:
-                self.py3.log("Fatal error - " + str(e), level=self.py3.LOG_ERROR)
+                self.mail_error = "Fatal error - " + str(e)
                 self.mail_count = None
                 _disconnect()
 
