@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 TODO: * fix all TODOs
+      * no output to i3bar
       * instead of polling mail_{count,error}, use py3.update() -- From thread possible?
       * instead of mail_error try to use py3.log() from thread
 Display number of unread messages from IMAP account.
