@@ -168,6 +168,8 @@ class Py3status:
             mail_count = 0
             directories = self.mailbox.split(',')
 
+            # TODO NOTE WARN XXX: hangs here when network gets lost
+
             for directory in directories:
                 self.connection.select(directory)
                 criterion_response = self.connection.search(None, self.criterion)
