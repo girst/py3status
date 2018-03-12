@@ -58,7 +58,6 @@ class Py3status:
     format_down = 'WWAN: {operator} {netgen} ({signal})'
     format_error = 'WWAN: {error}'
     format_up = 'WWAN: {operator} {netgen} ({signal})'
-    data = {}
     modem = None
 
     def wwan_status_nm(self):
