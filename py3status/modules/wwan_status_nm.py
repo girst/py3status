@@ -12,14 +12,14 @@ Configuration parameters:
         useful if you want to keep track of where there
         is a 4G connection.
         (default False)
-    format_down: What to display when the modem is not plugged in
+    format_down: What to display when the modem is not plugged in.
         (default 'WWAN: {operator} {netgen} ({signal})')
     format_error: What to display when modem can't be accessed.
         (default 'WWAN: {error}')
     format_up: What to display upon regular connection
         (default 'WWAN: {operator} {netgen} ({signal})')
-    modem: The device to use from NetworkManager config
-        (default '', empty value will use first find modem or
+    modem: The modem device to use.
+        (default 'auto', empty value will use first find modem or
         use 'busctl introspect org.freedesktop.ModemManager1 \
                 /org/freedesktop/ModemManager1/Modem/0'
         and read .EquipmentIdentifier)
@@ -52,10 +52,10 @@ class Py3status:
     # available configuration parameters
     cache_timeout = 5
     consider_3G_degraded = False
-    format_error = 'WWAN: {error}'
     format_down = 'WWAN: {operator} {netgen} ({signal})'
+    format_error = 'WWAN: {error}'
     format_up = 'WWAN: {operator} {netgen} ({signal})'
-    modem = ""
+    modem = 'auto'
 
     def wwan_status_nm(self):
         response = {}
@@ -73,8 +73,8 @@ class Py3status:
 
                 eqid = str(proxy.EquipmentIdentifier)
 
-                if (self.modem != ""
-                        and eqid == self.modem) or (self.modem == ""):
+                if (self.modem != 'auto'
+                        and eqid == self.modem) or (self.modem == 'auto'):
                     state = proxy.State
                     signal = str(proxy.SignalQuality[0]) + '%'
                     modes = proxy.CurrentModes[0]
