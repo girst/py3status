@@ -19,10 +19,7 @@ Configuration parameters:
     format_up: What to display upon regular connection
         (default 'WWAN: {operator} {netgen} ({signal})')
     modem: The modem device to use.
-        (default 'auto', empty value will use first find modem or
-        use 'busctl introspect org.freedesktop.ModemManager1 \
-                /org/freedesktop/ModemManager1/Modem/0'
-        and read .EquipmentIdentifier)
+        (default 'auto')
 
 Color options:
     color_bad: Error or no connection
@@ -55,6 +52,12 @@ class Py3status:
     format_down = 'WWAN: {operator} {netgen} ({signal})'
     format_error = 'WWAN: {error}'
     format_up = 'WWAN: {operator} {netgen} ({signal})'
+    """
+    modem: 'auto' value will use first find modem or
+    use 'busctl introspect org.freedesktop.ModemManager1 \
+            /org/freedesktop/ModemManager1/Modem/0'
+    and read '.EquipmentIdentifier')
+    """
     modem = 'auto'
 
     def wwan_status_nm(self):
@@ -62,10 +65,10 @@ class Py3status:
         response['cached_until'] = self.py3.time_in(self.cache_timeout)
 
         bus = SystemBus()
-        """
-        find the modem
-        """
         for id in range(0, 20):
+            """
+            find the modem
+            """
             device = 'Modem/' + str(id)
 
             try:
