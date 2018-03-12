@@ -16,16 +16,12 @@ Configuration parameters:
         (default 'WWAN: {operator} {netgen} ({signal})')
     format_error: What to display when modem can't be accessed.
         (default 'WWAN: {error}')
-    format_no_service: What to display when the modem does not have a
-        network connection. This allows to omit the (then
-        meaningless) network generation.
-        (default 'WWAN: {operator}')
     format_up: What to display upon regular connection
         (default 'WWAN: {operator} {netgen} ({signal})')
     modem: The device to use from NetworkManager config
-        (default '', empty value will use first find modem or 
+        (default '', empty value will use first find modem or
         use 'busctl introspect org.freedesktop.ModemManager1 \
-                                /org/freedesktop/ModemManager1/Modem/0'
+                /org/freedesktop/ModemManager1/Modem/0'
         and read .EquipmentIdentifier)
 
 Color options:
