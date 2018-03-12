@@ -13,13 +13,17 @@ Configuration parameters:
         is a 4G connection.
         (default False)
     format_down: What to display when the modem is not plugged in.
-        (default 'WWAN: {operator} {netgen} ({signal})')
+        (default 'WWAN: {operator} {netgen} ({signal}%)')
     format_error: What to display when modem can't be accessed.
         (default 'WWAN: {error}')
     format_up: What to display upon regular connection
-        (default 'WWAN: {operator} {netgen} ({signal})')
-    modem: The modem device to use.
-        (default 'auto')
+        (default 'WWAN: {operator} {netgen} ({signal}%)')
+    modem: The modem device to use. If None
+        will use first find modem or
+        use 'busctl introspect org.freedesktop.ModemManager1 \
+            /org/freedesktop/ModemManager1/Modem/0'
+        and read '.EquipmentIdentifier')
+        (default None)
 
 Color options:
     color_bad: Error or no connection
@@ -42,6 +46,8 @@ off
 
 from pydbus import SystemBus
 
+STRING_WRONG_MODEM = "wrong or any modem"
+
 
 class Py3status:
     """
@@ -52,13 +58,7 @@ class Py3status:
     format_down = 'WWAN: {operator} {netgen} ({signal})'
     format_error = 'WWAN: {error}'
     format_up = 'WWAN: {operator} {netgen} ({signal})'
-    """
-    modem: 'auto' value will use first find modem or
-    use 'busctl introspect org.freedesktop.ModemManager1 \
-            /org/freedesktop/ModemManager1/Modem/0'
-    and read '.EquipmentIdentifier')
-    """
-    modem = 'auto'
+    modem = None
 
     def wwan_status_nm(self):
         response = {}
@@ -76,21 +76,20 @@ class Py3status:
 
                 eqid = str(proxy.EquipmentIdentifier)
 
-                if (self.modem != 'auto'
-                        and eqid == self.modem) or (self.modem == 'auto'):
-                    state = proxy.State
-                    signal = str(proxy.SignalQuality[0]) + '%'
-                    modes = proxy.CurrentModes[0]
-                    operator = proxy.OperatorName
-                    netgen = self._get_capabilities(modes)
+                if (self.modem is not None
+                        and eqid == self.modem) or (self.modem is None):
+                    data = {
+                        'state': proxy.State,
+                        'signal': str(proxy.SignalQuality[0]),
+                        'modes': proxy.CurrentModes[0],
+                        'operator': proxy.OperatorName,
+                    }
+
+                    data.netgen = self._get_capabilities(data.modes)
 
                     if state == 11:
                         response['full_text'] = self.py3.safe_format(
-                            self.format_up,
-                            dict(
-                                netgen=netgen[1],
-                                signal=signal,
-                                operator=operator))
+                            self.format_up, data)
                         """
                         green color if 4G, else yellow
                         """
@@ -103,17 +102,10 @@ class Py3status:
 
                     else:
                         response['full_text'] = self.py3.safe_format(
-                            self.format_down,
-                            dict(
-                                netgen=netgen[1],
-                                signal=signal,
-                                operator=operator))
+                            self.format_down, data)
                         response['color'] = self.py3.COLOR_BAD
                 else:
-                    response['full_text'] = self.py3.safe_format(
-                        self.format_error, dict(error='wrong or empty modem'))
-                    response['color'] = self.py3.COLOR_BAD
-                return response
+                    self.py3.error(STRING_WRONG_MODEM)
 
             except:
                 pass
