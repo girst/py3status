@@ -58,6 +58,7 @@ class Py3status:
     format_down = 'WWAN: {operator} {netgen} ({signal})'
     format_error = 'WWAN: {error}'
     format_up = 'WWAN: {operator} {netgen} ({signal})'
+    data = {}
     modem = None
 
     def wwan_status_nm(self):
@@ -78,16 +79,19 @@ class Py3status:
 
                 if (self.modem is not None
                         and eqid == self.modem) or (self.modem is None):
+
                     data = {
                         'state': proxy.State,
                         'signal': str(proxy.SignalQuality[0]),
                         'modes': proxy.CurrentModes[0],
-                        'operator': proxy.OperatorName,
+                        'operator': proxy.OperatorName
                     }
 
-                    data.netgen = self._get_capabilities(data.modes)
+                    netgen = self._get_capabilities(data['modes'])
 
-                    if state == 11:
+                    data['netgen'] = netgen[1]
+
+                    if data['state'] == 11:
                         response['full_text'] = self.py3.safe_format(
                             self.format_up, data)
                         """
@@ -104,6 +108,9 @@ class Py3status:
                         response['full_text'] = self.py3.safe_format(
                             self.format_down, data)
                         response['color'] = self.py3.COLOR_BAD
+
+                    return response
+
                 else:
                     self.py3.error(STRING_WRONG_MODEM)
 
