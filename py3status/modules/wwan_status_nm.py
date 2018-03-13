@@ -13,11 +13,11 @@ Configuration parameters:
         is a 4G connection.
         (default False)
     format_down: What to display when the modem is not plugged in.
-        (default 'WWAN: {state} - {operator} {netgen} ({signal}%)')
+        (default 'WWAN: {state} - {operator} {access_technologies} {netgen} ({signal}%)')
     format_error: What to display when modem can't be accessed.
         (default 'WWAN: {error}')
     format_up: What to display upon regular connection
-        (default 'WWAN: {state} - {operator} {netgen} ({signal}%)')
+        (default 'WWAN: {state} - {operator} {access_technologies} {netgen} ({signal}%)')
     modem: The modem device to use. If None
         will use first find modem or
         use 'busctl introspect org.freedesktop.ModemManager1 \
@@ -44,6 +44,8 @@ off
 {'color': '#FF0000', 'full_text': u'WWAN: Disconnected - Bouygues Telecom 4G (12%)'}
 """
 
+from enum import Enum
+
 from pydbus import SystemBus
 
 STRING_WRONG_MODEM = "wrong or any modem"
@@ -56,21 +58,40 @@ class Py3status:
     # available configuration parameters
     cache_timeout = 5
     consider_3G_degraded = False
-    format_down = 'WWAN: {state} - {operator} {netgen} ({signal}%)'
+    format_down = 'WWAN: {state} - {operator} {access_technologies} {netgen} ({signal}%)'
     format_error = 'WWAN: {error'
-    format_up = 'WWAN: {state} - {operator} {netgen} ({signal}%)'
+    format_up = 'WWAN: {state} - {operator} {access_technologies} {netgen} ({signal}%)'
     modem = None
 
     def wwan_status_nm(self):
         response = {}
         response['cached_until'] = self.py3.time_in(self.cache_timeout)
+
         states = {10: "Connecting", 11: "Connected"}
+
+        # https://www.freedesktop.org/software/ModemManager/api/1.0.0/ModemManager-Flags-and-Enumerations.html#MMModemAccessTechnology
+        speed = {
+            16384: 'LTE',
+            8192: 'EVDOB',
+            4096: 'EVDOA',
+            2048: 'EVDO0',
+            1024: '1XRTT',
+            512: 'HSPA+',
+            256: 'HSPA',
+            128: 'HSUPA',
+            64: 'HSDPA',
+            32: 'UMTS',
+            16: 'EDGE',
+            8: 'GPRS',
+            4: 'GSM_COMPACT',
+            2: 'GSM',
+            0: 'POTS'
+        }
 
         bus = SystemBus()
         for id in range(0, 20):
-            """
-            find the modem
-            """
+
+            # find the modem
             device = 'Modem/' + str(id)
 
             try:
@@ -89,7 +110,8 @@ class Py3status:
                     data = {
                         'state': 'Disconnected',
                         'signal': status['signal-quality'][0],
-                        'netgen': status['access-technologies'],
+                        'access_technologies': status['access-technologies'],
+                        'netgen': speed[status['access-technologies']],
                         'bands': status['current-bands']
                     }
 
