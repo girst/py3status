@@ -55,9 +55,9 @@ class Py3status:
     # available configuration parameters
     cache_timeout = 5
     consider_3G_degraded = False
-    format_down = 'WWAN: {operator} {netgen} ({signal})'
+    format_down = 'WWAN: {operator} {netgen} ({signal}%)'
     format_error = 'WWAN: {error}'
-    format_up = 'WWAN: {operator} {netgen} ({signal})'
+    format_up = 'WWAN: {operator} {netgen} ({signal}%)'
     modem = None
 
     def wwan_status_nm(self):
