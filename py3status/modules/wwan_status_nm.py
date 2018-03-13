@@ -13,11 +13,11 @@ Configuration parameters:
         is a 4G connection.
         (default False)
     format_down: What to display when the modem is not plugged in.
-        (default 'WWAN: {operator} {netgen} ({signal}%)')
+        (default 'WWAN: {state} - {operator} {netgen} ({signal}%)')
     format_error: What to display when modem can't be accessed.
         (default 'WWAN: {error}')
     format_up: What to display upon regular connection
-        (default 'WWAN: {operator} {netgen} ({signal}%)')
+        (default 'WWAN: {state} - {operator} {netgen} ({signal}%)')
     modem: The modem device to use. If None
         will use first find modem or
         use 'busctl introspect org.freedesktop.ModemManager1 \
@@ -38,15 +38,16 @@ Requires:
 @author Cyril Levis <levis.cyril@gmail.com>
 
 SAMPLE OUTPUT
-{'color': '#00FF00', 'full_text': u'Bouygues Telecom 4G (19%)'}
+{'color': '#00FF00', 'full_text': u'WWAN: Connected - Bouygues Telecom 4G (19%)'}
 
 off
-{'color': '#FF0000', 'full_text': u'Bouygues Telecom 4G (12%)'}
+{'color': '#FF0000', 'full_text': u'WWAN: Disconnected - Bouygues Telecom 4G (12%)'}
 """
 
 from pydbus import SystemBus
 
 STRING_WRONG_MODEM = "wrong or any modem"
+STRING_UNKNOW_OPERATOR = "unknow operator"
 
 
 class Py3status:
@@ -55,14 +56,15 @@ class Py3status:
     # available configuration parameters
     cache_timeout = 5
     consider_3G_degraded = False
-    format_down = 'WWAN: {operator} {netgen} ({signal}%)'
-    format_error = 'WWAN: {error}'
-    format_up = 'WWAN: {operator} {netgen} ({signal}%)'
+    format_down = 'WWAN: {state} - {operator} {netgen} ({signal}%)'
+    format_error = 'WWAN: {error'
+    format_up = 'WWAN: {state} - {operator} {netgen} ({signal}%)'
     modem = None
 
     def wwan_status_nm(self):
         response = {}
         response['cached_until'] = self.py3.time_in(self.cache_timeout)
+        states = {10: "Connecting", 11: "Connected"}
 
         bus = SystemBus()
         for id in range(0, 20):
@@ -74,35 +76,42 @@ class Py3status:
             try:
                 proxy = bus.get('.ModemManager1', device)
 
+                # we can maybe choose another selector
                 eqid = str(proxy.EquipmentIdentifier)
 
                 if (self.modem is not None
                         and eqid == self.modem) or (self.modem is None):
 
+                    # get status informations
+                    status = proxy.GetStatus()
+
+                    # start to build return data dict
                     data = {
-                        'state': proxy.State,
-                        'signal': str(proxy.SignalQuality[0]),
-                        'modes': proxy.CurrentModes[0],
-                        'operator': proxy.OperatorName
+                        'state': 'Disconnected',
+                        'signal': status['signal-quality'][0],
+                        'netgen': status['access-technologies'],
+                        'bands': status['current-bands']
                     }
 
-                    netgen = self._get_capabilities(data['modes'])
+                    # if registred on network, get operator name
+                    if status['m3gpp-registration-state'] == 1:
+                        data['operator'] = status['m3gpp-operator-name']
+                    else:
+                        data['operator'] = STRING_UNKNOW_OPERATOR
+                        """
+                        break to be able to manage no/unplugged device
+                        we break here and not later to be able 
+                        to keep information will disconnected
+                        """
+                        break
 
-                    data['netgen'] = netgen[1]
-
-                    if data['state'] == 11:
+                    # if connected or connecting
+                    if status['state'] == 11 or status['state'] == 10:
+                        data['state'] = states[status['state']]
                         response['full_text'] = self.py3.safe_format(
                             self.format_up, data)
-                        """
-                        green color if 4G, else yellow
-                        """
-                        if netgen[0] == 4:
-                            response['color'] = self.py3.COLOR_GOOD
-                        elif netgen[0] == 3 and self.consider_3G_degraded is False:
-                            response['color'] = self.py3.COLOR_GOOD
-                        else:
-                            response['color'] = self.py3.COLOR_DEGRADED
-
+                        response['color'] = self.py3.COLOR_GOOD
+                    # else disconnected
                     else:
                         response['full_text'] = self.py3.safe_format(
                             self.format_down, data)
@@ -116,13 +125,9 @@ class Py3status:
             except:
                 pass
 
-    def _get_capabilities(self, c):
-        """
-        TODO: improve the following dict based on this doc
-        https://developer.gnome.org/NetworkManager/stable/nm-dbus-types.html
-        """
-        capabilities = {8: (3, '3G+'), 12: (4, '4G')}
-        return capabilities.get(c, (0, 'no data'))
+        # if there is no modem
+        response['full_text'] = ''
+        return response
 
 
 if __name__ == "__main__":
