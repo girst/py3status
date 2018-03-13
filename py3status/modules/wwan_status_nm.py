@@ -13,11 +13,11 @@ Configuration parameters:
         is a 4G connection.
         (default False)
     format_down: What to display when the modem is not plugged in.
-        (default 'WWAN: {state} - {operator} {access_technologies} {netgen} ({signal}%)')
+        (default 'WWAN: {state} - {operator} {netgen} ({signal}%)')
     format_error: What to display when modem can't be accessed.
         (default 'WWAN: {error}')
     format_up: What to display upon regular connection
-        (default 'WWAN: {state} - {operator} {access_technologies} {netgen} ({signal}%)')
+        (default 'WWAN: {state} - {operator} {netgen} ({signal}%)')
     modem: The modem device to use. If None
         will use first find modem or
         use 'busctl introspect org.freedesktop.ModemManager1 \
@@ -58,9 +58,9 @@ class Py3status:
     # available configuration parameters
     cache_timeout = 5
     consider_3G_degraded = False
-    format_down = 'WWAN: {state} - {operator} {access_technologies} {netgen} ({signal}%)'
+    format_down = 'WWAN: {state} - {operator} {netgen} ({signal}%)'
     format_error = 'WWAN: {error'
-    format_up = 'WWAN: {state} - {operator} {access_technologies} {netgen} ({signal}%)'
+    format_up = 'WWAN: {state} - {operator} {netgen} ({signal}%)'
     modem = None
 
     def wwan_status_nm(self):
@@ -110,9 +110,7 @@ class Py3status:
                     data = {
                         'state': 'Disconnected',
                         'signal': status['signal-quality'][0],
-                        'access_technologies': status['access-technologies'],
-                        'netgen': speed[status['access-technologies']],
-                        'bands': status['current-bands']
+                        'netgen': speed[status['access-technologies']]
                     }
 
                     # if registred on network, get operator name
