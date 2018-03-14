@@ -6,7 +6,9 @@ based on ModemManager, NetworkManager and dbus.
 Configuration parameters:
     cache_timeout: How often we refresh this module in seconds.
         (default 5)
-    format_down: What to display when the modem is not plugged in.
+    format_disconnected: What to display when the modem is not plugged in.
+        (default 'WWAN')
+    format_down: What to display when the modem is down.
         (default 'WWAN: {status} - {operator} {netgen} ({signal}%)')
     format_up: What to display upon regular connection
     network available placeholders are {ip_address}, {ipv4_address}, {ipv4_dns1}, {ipv4_dns2},
@@ -51,6 +53,7 @@ class Py3status:
     """
     # available configuration parameters
     cache_timeout = 5
+    format_disconnected = 'WWAN:'
     format_down = 'WWAN: {status} - {operator} {netgen} ({signal}%)'
     format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip_address}'
     modem = None
@@ -84,21 +87,26 @@ class Py3status:
         response['cached_until'] = self.py3.time_in(self.cache_timeout)
 
         bus = SystemBus()
-        for id in range(0, 20):
+        try:
+            modemmanager_proxy = bus.get('.ModemManager1')
+            modems = modemmanager_proxy.GetManagedObjects()
+        except:
+            pass
 
-            # find the modem
-            device = str(DBUS_MODEM_PATH) + str(id)
+        for objects in modems.items():
+
+            modem_path = objects[0]
 
             try:
-                proxy = bus.get('.ModemManager1', device)
+                modem_proxy = bus.get('.ModemManager1', modem_path)
 
                 # we can maybe choose another selector
-                eqid = str(proxy.EquipmentIdentifier)
+                eqid = str(modem_proxy.EquipmentIdentifier)
 
                 if self.modem is None or self.modem == eqid:
 
                     # get status informations
-                    status = proxy.GetStatus()
+                    status = modem_proxy.GetStatus()
 
                     # start to build return data dict
                     data = {
@@ -126,7 +134,7 @@ class Py3status:
 
                         # Get ipv4 network config
                         try:
-                            bearer = proxy.Bearers[0]
+                            bearer = modem_proxy.Bearers[0]
                             bearer_proxy = bus.get('.ModemManager1', bearer)
                             ipv4 = bearer_proxy.Ip4Config
                             data['ipv4_address'] = ipv4['address']
@@ -176,7 +184,9 @@ class Py3status:
                 pass
 
         # if there is no modem
-        full_text = ''
+        full_text = self.py3.safe_format(
+            self.format_disconnected, data)
+        )
         color = self.py3.COLOR_BAD
         return {'full_text': full_text, 'color': color}
 
