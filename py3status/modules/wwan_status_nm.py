@@ -139,18 +139,18 @@ class Py3status:
                     return response
 
                 else:
+                    response['full_text'] = self.py3.safe_format(
+                        self.format_error, dict(error=STRING_WRONG_MODEM))
+                    response['color'] = self.py3.COLOR_BAD
+
                     self.py3.error(STRING_WRONG_MODEM)
-                    # response['full_text'] = self.py3.safe_format(
-                    #     self.format_error, dict(error=STRING_WRONG_MODEM))
-                    # response['color'] = self.py3.COLOR_BAD
-                    # return response
+                    return response
 
             except:
                 pass
 
         # if there is no modem
-        response['full_text'] = self.py3.safe_format(
-            self.format_error, dict(error=''))
+        response['full_text'] = ''
         response['color'] = self.py3.COLOR_BAD
         return response
 
