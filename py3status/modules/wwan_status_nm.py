@@ -133,12 +133,11 @@ class Py3status:
                         response['full_text'] = self.py3.safe_format(
                             self.format_down, data)
                         response['color'] = self.py3.COLOR_BAD
-
                     return response
 
                 else:
                     response['full_text'] = self.py3.safe_format(
-                        self.format_error, dict(error=STRING_WRONG_MODEM))
+                        self.format_error, dict(error=''))
                     response['color'] = self.py3.COLOR_BAD
 
                     self.py3.error(STRING_WRONG_MODEM)
