@@ -184,7 +184,7 @@ class Py3status:
                 pass
 
         # if there is no modem
-        full_text = self.py3.safe_format(self.format_disconnected, data)
+        full_text = self.py3.safe_format(self.format_disconnected, '')
         color = self.py3.COLOR_BAD
         return {'full_text': full_text, 'color': color}
 
