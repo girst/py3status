@@ -7,9 +7,11 @@ Configuration parameters:
     cache_timeout: How often we refresh this module in seconds.
         (default 5)
     format_down: What to display when the modem is not plugged in.
-        (default 'WWAN: {state} - {operator} {netgen} ({signal}%)')
+        (default 'WWAN: {status} - {operator} {netgen} ({signal}%)')
     format_up: What to display upon regular connection
-        (default 'WWAN: {state} - {operator} {netgen} ({signal}%) - {ipv4_address} {ipv6_address}')
+    network available placeholders are {ip_address}, {ipv4_address}, {ipv4_dns1}, {ipv4_dns2}, {ipv6_address}, {ipv6_dns1}, {ipv6_dns2}
+    wwan available placeholders are {status}, {operator}, {netgen}, {signal}
+    (default 'WWAN: {status} - {operator} {netgen} ({signal}%) - ip:{ip_address} ip4:{ipv4_address} ip6:{ipv6_address}')
     modem: The modem device to use. If None
         will use first find modem or
         use 'busctl introspect org.freedesktop.ModemManager1 \
@@ -53,8 +55,10 @@ class Py3status:
     modem = None
 
     def post_config_hook(self):
+        # network states dict
         self.states = {10: "Connecting", 11: "Connected"}
 
+        # network speed dict
         # https://www.freedesktop.org/software/ModemManager/api/1.0.0/ModemManager-Flags-and-Enumerations.html#MMModemAccessTechnology
         self.speed = {
             16384: 'LTE',
