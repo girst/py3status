@@ -44,8 +44,6 @@ off
 {'color': '#FF0000', 'full_text': u'WWAN: Disconnected - Bouygues Telecom 4G (12%)'}
 """
 
-from enum import Enum
-
 from pydbus import SystemBus
 
 STRING_WRONG_MODEM = "wrong or any modem"
