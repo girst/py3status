@@ -9,9 +9,10 @@ Configuration parameters:
     format_down: What to display when the modem is not plugged in.
         (default 'WWAN: {status} - {operator} {netgen} ({signal}%)')
     format_up: What to display upon regular connection
-    network available placeholders are {ip_address}, {ipv4_address}, {ipv4_dns1}, {ipv4_dns2}, {ipv6_address}, {ipv6_dns1}, {ipv6_dns2}
+    network available placeholders are {ip_address}, {ipv4_address}, {ipv4_dns1}, {ipv4_dns2},
+        {ipv6_address}, {ipv6_dns1}, {ipv6_dns2}
     wwan available placeholders are {status}, {operator}, {netgen}, {signal}
-    (default 'WWAN: {status} - {operator} {netgen} ({signal}%) - ip:{ip_address} ip4:{ipv4_address} ip6:{ipv6_address}')
+    (default 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip_address}')
     modem: The modem device to use. If None
         will use first find modem or
         use 'busctl introspect org.freedesktop.ModemManager1 \
@@ -31,7 +32,7 @@ Requires:
 @author Cyril Levis <levis.cyril@gmail.com>
 
 SAMPLE OUTPUT
-{'color': '#00FF00', 'full_text': u'WWAN: Connected - Bouygues Telecom 4G (19%) - 10.10.0.94 - ::1'}
+{'color': '#00FF00', 'full_text': u'WWAN: Connected - Bouygues Telecom 4G (19%) -> 10.10.0.94'}
 
 off
 {'color': '#FF0000', 'full_text': u'WWAN: Disconnected - Bouygues Telecom 4G (12%)'}
@@ -51,7 +52,7 @@ class Py3status:
     # available configuration parameters
     cache_timeout = 5
     format_down = 'WWAN: {status} - {operator} {netgen} ({signal}%)'
-    format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) - ip:{ip_address} ip4:{ipv4_address}, ip6:{ipv6_address}'
+    format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip_address}'
     modem = None
 
     def post_config_hook(self):
