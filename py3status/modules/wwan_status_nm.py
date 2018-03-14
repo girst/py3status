@@ -119,7 +119,7 @@ class Py3status:
                         data['operator'] = STRING_UNKNOW_OPERATOR
                         """
                         break to be able to manage no/unplugged device
-                        we break here and not later to be able 
+                        we break here and not later to be able
                         to keep information will disconnected
                         """
                         break
