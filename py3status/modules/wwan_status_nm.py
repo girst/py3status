@@ -59,7 +59,7 @@ class Py3status:
     cache_timeout = 5
     consider_3G_degraded = False
     format_down = 'WWAN: {state} - {operator} {netgen} ({signal}%)'
-    format_error = 'WWAN: {error'
+    format_error = 'WWAN: {error}'
     format_up = 'WWAN: {state} - {operator} {netgen} ({signal}%)'
     modem = None
 
@@ -100,8 +100,7 @@ class Py3status:
                 # we can maybe choose another selector
                 eqid = str(proxy.EquipmentIdentifier)
 
-                if (self.modem is not None
-                        and eqid == self.modem) or (self.modem is None):
+                if self.modem is None or self.modem == eqid:
 
                     # get status informations
                     status = proxy.GetStatus()
@@ -141,12 +140,18 @@ class Py3status:
 
                 else:
                     self.py3.error(STRING_WRONG_MODEM)
+                    # response['full_text'] = self.py3.safe_format(
+                    #     self.format_error, dict(error=STRING_WRONG_MODEM))
+                    # response['color'] = self.py3.COLOR_BAD
+                    # return response
 
             except:
                 pass
 
         # if there is no modem
-        response['full_text'] = ''
+        response['full_text'] = self.py3.safe_format(
+            self.format_error, dict(error=''))
+        response['color'] = self.py3.COLOR_BAD
         return response
 
 
