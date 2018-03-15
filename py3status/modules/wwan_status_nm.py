@@ -147,10 +147,10 @@ class Py3status:
 
                         # Get network config
                         bearer = modem_proxy.Bearers[0]
-                        ip = self._get_ip(bearer)
+                        network_config = self._get_network_config(bearer)
 
                         # Add network config to data dict
-                        data.update(ip)
+                        data.update(network_config)
 
                         if data['ip']:
                             color = self.py3.COLOR_GOOD
@@ -176,15 +176,15 @@ class Py3status:
                 finally:
                     return {'full_text': full_text, 'color': color}
 
-    def _get_ip(self, bearer):
+    # get network config function
+    def _get_network_config(self, bearer):
         try:
             bearer_proxy = self.bus.get(STRING_MODEMMANAGER_DBUS, bearer)
 
-            ipv4 = bearer_proxy.Ip4Config
-            ipv6 = bearer_proxy.Ip6Config
-
             network_config = {}
 
+            # Get ipv4 config
+            ipv4 = bearer_proxy.Ip4Config
             if ipv4['address']:
                 network_config['ipv4_address'] = ipv4['address']
                 network_config['ipv4_dns1'] = ipv4['dns1']
@@ -197,6 +197,7 @@ class Py3status:
                 network_config['ip'] = STRING_NO_IP
 
             # Get ipv6 network config
+            ipv6 = bearer_proxy.Ip6Config
             if ipv6['address']:
                 network_config['ipv6_address'] = ipv6['address']
                 network_config['ipv6_dns1'] = ipv6['dns1']
