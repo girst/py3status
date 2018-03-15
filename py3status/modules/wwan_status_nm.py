@@ -117,7 +117,7 @@ class Py3status:
             5: 'ROAMING'
         }
 
-    bus = SystemBus()
+        self.bus = SystemBus()
 
     def wwan_status_nm(self):
         response = {}
@@ -155,7 +155,7 @@ class Py3status:
                         data['signal'] = STRING_UNKNOWN
 
                     try:
-                        highest_access_bit = 1<<(status['access-technologies'].bit_length()-1)
+                        highest_access_bit = 1 << (status['access-technologies'].bit_length()-1)
                         data['netgen'] = self.speed[highest_access_bit]
                     except:
                         data['netgen'] = STRING_UNKNOWN
