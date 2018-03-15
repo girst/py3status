@@ -148,7 +148,7 @@ class Py3status:
 
                         # Get ipv6 network config
                         try:
-                            bearer = proxy.Bearers[0]
+                            bearer = modem_proxy.Bearers[0]
                             bearer_proxy = bus.get('.ModemManager1', bearer)
                             ipv6 = bearer_proxy.Ip6Config
                             data['ipv6_address'] = ipv6['address']
