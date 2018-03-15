@@ -6,8 +6,8 @@ based on ModemManager, NetworkManager and dbus.
 Configuration parameters:
     cache_timeout: How often we refresh this module in seconds.
         (default 5)
-    format_disconnected: What to display when the modem is not plugged in.
-        (default 'WWAN')
+    format_absent: What to display when the modem is not plugged in.
+        (default '')
     format_down: What to display when the modem is down.
         (default 'WWAN: {status} - {operator} {netgen} ({signal}%)')
     format_up: What to display upon regular connection
@@ -53,7 +53,7 @@ class Py3status:
     """
     # available configuration parameters
     cache_timeout = 5
-    format_disconnected = 'WWAN:'
+    format_absent = ''
     format_down = 'WWAN: {status} - {operator} {netgen} ({signal}%)'
     format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip_address}'
     modem = None
@@ -184,7 +184,7 @@ class Py3status:
                 pass
 
         # if there is no modem
-        full_text = self.py3.safe_format(self.format_disconnected, '')
+        full_text = self.py3.safe_format(self.format_absent, '')
         color = self.py3.COLOR_BAD
         return {'full_text': full_text, 'color': color}
 
