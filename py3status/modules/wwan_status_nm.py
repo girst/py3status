@@ -65,7 +65,7 @@ class Py3status:
             2: "Connecting",
             3: "Disabled",
             4: "Disabling",
-            5: "Connecting",
+            5: "Home",
             6: "Connecting",
             7: "Searching",
             8: "Registred",
@@ -189,8 +189,7 @@ class Py3status:
                             self.format_down, data)
                         color = self.py3.COLOR_BAD
 
-                except Exception as e:
-                    # raise e
+                except:
                     data['status'] = self.states[status['state']]
                     color = self.py3.COLOR_BAD
                     full_text = self.py3.safe_format(self.format_absent, data)
