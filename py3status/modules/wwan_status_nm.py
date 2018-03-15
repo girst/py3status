@@ -7,7 +7,7 @@ Configuration parameters:
     cache_timeout: How often we refresh this module in seconds.
         (default 5)
     format_absent: What to display when the modem is not plugged in.
-        (default '')
+    (default 'WWAN: {status}')
     format_down: What to display when the modem is down.
         (default 'WWAN: {status} - {operator} {netgen} ({signal}%)')
     format_up: What to display upon regular connection
@@ -44,6 +44,7 @@ from pydbus import SystemBus
 
 STRING_WRONG_MODEM = "wrong or any modem"
 STRING_UNKNOW_OPERATOR = "unknow operator"
+STRING_MODEMMANAGER_DBUS = 'org.freedesktop.ModemManager1'
 
 
 class Py3status:
@@ -51,14 +52,27 @@ class Py3status:
     """
     # available configuration parameters
     cache_timeout = 5
-    format_absent = ''
+    format_absent = 'WWAN: {status}'
     format_down = 'WWAN: {status} - {operator} {netgen} ({signal}%)'
     format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip_address}'
     modem = None
 
     def post_config_hook(self):
         # network states dict
-        self.states = {10: "Connecting", 11: "Connected"}
+        self.states = {
+            0: "Connecting",
+            1: "Connecting",
+            2: "Connecting",
+            3: "Disabled",
+            4: "Disabling",
+            5: "Connecting",
+            6: "Connecting",
+            7: "Searching",
+            8: "Registred",
+            9: "Connecting",
+            10: "Connecting",
+            11: "Connected"
+        }
 
         # network speed dict
         # https://www.freedesktop.org/software/ModemManager/api/1.0.0/ModemManager-Flags-and-Enumerations.html#MMModemAccessTechnology
@@ -70,6 +84,7 @@ class Py3status:
             1024: '1XRTT',
             512: 'HSPA+',
             256: 'HSPA',
+            192: 'HSUPA',
             128: 'HSUPA',
             64: 'HSDPA',
             32: 'UMTS',
@@ -82,58 +97,55 @@ class Py3status:
 
     def wwan_status_nm(self):
         response = {}
+        data = {}
         response['cached_until'] = self.py3.time_in(self.cache_timeout)
 
         bus = SystemBus()
+
         try:
-            modemmanager_proxy = bus.get('.ModemManager1')
+            modemmanager_proxy = bus.get(STRING_MODEMMANAGER_DBUS)
             modems = modemmanager_proxy.GetManagedObjects()
         except:
             pass
 
+        # browse modems objects
         for objects in modems.items():
-
             modem_path = objects[0]
+            modem_proxy = bus.get(STRING_MODEMMANAGER_DBUS, modem_path)
 
-            try:
-                modem_proxy = bus.get('.ModemManager1', modem_path)
+            # we can maybe choose another selector
+            eqid = str(modem_proxy.EquipmentIdentifier)
 
-                # we can maybe choose another selector
-                eqid = str(modem_proxy.EquipmentIdentifier)
+            # use selected modem or first find
+            if self.modem is None or self.modem == eqid:
 
-                if self.modem is None or self.modem == eqid:
-
+                try:
                     # get status informations
                     status = modem_proxy.GetStatus()
 
                     # start to build return data dict
-                    data = {
-                        'status': 'Disconnected',
-                        'signal': status['signal-quality'][0],
-                        'netgen': self.speed[status['access-technologies']]
-                    }
+                    if status['signal-quality']:
+                        data['signal'] = status['signal-quality'][0]
+
+                    if status['access-technologies']:
+                        data['netgen'] = self.speed[status[
+                            'access-technologies']]
 
                     # if registred on network, get operator name
                     if status['m3gpp-registration-state'] == 1:
                         data['operator'] = status['m3gpp-operator-name']
                     else:
                         data['operator'] = STRING_UNKNOW_OPERATOR
-                        """
-                        break to be able to manage no/unplugged device
-                        we break here and not later to be able
-                        to keep information will disconnected
-                        """
-                        break
 
-                    # if connected or connecting
-                    if status['state'] == 10 or status['state'] == 11:
-                        # Get status in human readable
-                        data['status'] = self.states[status['state']]
+                    # use human readable format
+                    data['status'] = self.states[status['state']]
 
+                    if status['state'] == 11:
                         # Get ipv4 network config
                         try:
                             bearer = modem_proxy.Bearers[0]
-                            bearer_proxy = bus.get('.ModemManager1', bearer)
+                            bearer_proxy = bus.get(STRING_MODEMMANAGER_DBUS,
+                                                   bearer)
                             ipv4 = bearer_proxy.Ip4Config
                             data['ipv4_address'] = ipv4['address']
                             data['ipv4_dns1'] = ipv4['dns1']
@@ -147,7 +159,8 @@ class Py3status:
                         # Get ipv6 network config
                         try:
                             bearer = modem_proxy.Bearers[0]
-                            bearer_proxy = bus.get('.ModemManager1', bearer)
+                            bearer_proxy = bus.get(STRING_MODEMMANAGER_DBUS,
+                                                   bearer)
                             ipv6 = bearer_proxy.Ip6Config
                             data['ipv6_address'] = ipv6['address']
                             data['ipv6_dns1'] = ipv6['dns1']
@@ -176,15 +189,14 @@ class Py3status:
                             self.format_down, data)
                         color = self.py3.COLOR_BAD
 
+                except Exception as e:
+                    # raise e
+                    data['status'] = self.states[status['state']]
+                    color = self.py3.COLOR_BAD
+                    full_text = self.py3.safe_format(self.format_absent, data)
+
+                finally:
                     return {'full_text': full_text, 'color': color}
-
-            except:
-                pass
-
-        # if there is no modem
-        full_text = self.py3.safe_format(self.format_absent, '')
-        color = self.py3.COLOR_BAD
-        return {'full_text': full_text, 'color': color}
 
 
 if __name__ == "__main__":
