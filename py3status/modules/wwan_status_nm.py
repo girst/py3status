@@ -152,13 +152,13 @@ class Py3status:
                     try:
                         data['signal'] = status['signal-quality'][0]
                     except:
-                        data['signal'] = "?"
+                        data['signal'] = STRING_UNKNOWN
 
                     try:
                         highest_access_bit = 1<<(status['access-technologies'].bit_length()-1)
                         data['netgen'] = self.speed[highest_access_bit]
                     except:
-                        data['netgen'] = "?"
+                        data['netgen'] = STRING_UNKNOWN
 
                     # if registred on network, get operator name
                     try:
