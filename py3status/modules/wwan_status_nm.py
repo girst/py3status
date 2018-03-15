@@ -51,7 +51,7 @@ from pydbus import SystemBus
 STRING_MODEMMANAGER_DBUS = 'org.freedesktop.ModemManager1'
 STRING_NO_MODEM = "no modem"
 STRING_NO_IP = "no ip"
-STRING_UNKNOW_OPERATOR = "unknow operator"
+STRING_UNKNOWN = "n/a"
 
 
 class Py3status:
@@ -86,22 +86,22 @@ class Py3status:
         # network speed dict
         # https://www.freedesktop.org/software/ModemManager/api/1.0.0/ModemManager-Flags-and-Enumerations.html#MMModemAccessTechnology
         self.speed = {
-            16384: 'LTE',
-            8192: 'EVDOB',
-            4096: 'EVDOA',
-            2048: 'EVDO0',
-            1024: '1XRTT',
-            512: 'HSPA+',
-            256: 'HSPA',
-            192: 'HSUPA',  # not sure
-            128: 'HSUPA',
-            64: 'HSDPA',
-            32: 'UMTS',
-            16: 'EDGE',
-            8: 'GPRS',
-            4: 'GSM_COMPACT',
-            2: 'GSM',
-            0: 'POTS'
+            0:        STRING_UNKNOWN,
+            1 << 0:  'POTS',
+            1 << 1:  'GSM',
+            1 << 2:  'GSM Compact',
+            1 << 3:  'GPRS',
+            1 << 4:  'EDGE',
+            1 << 5:  'UMTS',
+            1 << 6:  'HSDPA',
+            1 << 7:  'HSUPA',
+            1 << 8:  'HSPA',
+            1 << 9:  'HSPA+',
+            1 << 10: '1XRTT',
+            1 << 11: 'EVDO0',
+            1 << 12: 'EVDOA',
+            1 << 13: 'EVDOB',
+            1 << 14: 'LTE'
         }
 
     bus = SystemBus()
@@ -110,6 +110,9 @@ class Py3status:
         response = {}
         data = {}
         response['cached_until'] = self.py3.time_in(self.cache_timeout)
+        response['full_text'] = self.py3.safe_format(self.format_error,
+            dict(error=STRING_NO_MODEM, status="Disconnected"))
+        response['color'] = self.py3.COLOR_BAD
 
         try:
             modemmanager_proxy = self.bus.get(STRING_MODEMMANAGER_DBUS)
@@ -133,24 +136,29 @@ class Py3status:
                     status = modem_proxy.GetStatus()
 
                     # start to build return data dict
-                    if status['signal-quality']:
+                    try:
                         data['signal'] = status['signal-quality'][0]
+                    except:
+                        data['signal'] = "?"
 
-                    if status['access-technologies']:
-                        data['netgen'] = self.speed[status[
-                            'access-technologies']]
+                    try:
+                        data['netgen'] = self.speed[status['access-technologies']]
+                    except:
+                        data['netgen'] = "?"
 
                     # if registred on network, get operator name
-                    if status['m3gpp-registration-state'] == 1:
-                        data['operator'] = status['m3gpp-operator-name']
-                    else:
-                        data['operator'] = STRING_UNKNOW_OPERATOR
+                    try:
+                        if status['m3gpp-registration-state'] == 1:
+                            data['operator'] = status['m3gpp-operator-name']
+                        else:
+                            data['operator'] = STRING_UNKNOWN
+                    except:
+                        data['operator'] = STRING_UNKNOWN
 
                     # use human readable format
                     data['status'] = self.states[status['state']]
 
-                    if status['state'] == 11:
-
+                    if status['state'] == 11:  # connected
                         # Get network config
                         bearer = modem_proxy.Bearers[0]
                         network_config = self._get_network_config(bearer)
@@ -160,30 +168,28 @@ class Py3status:
 
                         if data['ip']:
                             if self.consider_3G_degraded and data['netgen'] != 'LTE':
-                                color = self.py2.COLOR_DEGRADED
+                                response['color'] = self.py2.COLOR_DEGRADED
                             else:
-                                color = self.py3.COLOR_GOOD
-                            full_text = self.py3.safe_format(
+                                response['color'] = self.py3.COLOR_GOOD
+                            response['full_text'] = self.py3.safe_format(
                                 self.format_up, data)
                         else:
-                            color = self.py3.COLOR_DEGRADED
-                            full_text = self.py3.safe_format(
+                            response['color'] = self.py3.COLOR_DEGRADED
+                            response['full_text'] = self.py3.safe_format(
                                 self.format_no_service, data)
 
-                    # else disconnected
-                    else:
-                        full_text = self.py3.safe_format(
+                    else:  # disconnected
+                        response['full_text'] = self.py3.safe_format(
                             self.format_down, data)
-                        color = self.py3.COLOR_BAD
+                        response['color'] = self.py3.COLOR_BAD
 
                 except:
                     data['error'] = STRING_NO_MODEM
                     data['status'] = self.states[status['state']]
-                    color = self.py3.COLOR_BAD
-                    full_text = self.py3.safe_format(self.format_error, data)
+                    response['color'] = self.py3.COLOR_BAD
+                    response['full_text'] = self.py3.safe_format(self.format_error, data)
 
-                finally:
-                    return {'full_text': full_text, 'color': color}
+        return response
 
     # get network config function
     def _get_network_config(self, bearer):
