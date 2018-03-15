@@ -37,7 +37,7 @@ Requires:
     NetworkManager
     pydbus
 
-@author Cyril Levis <levis.cyril@gmail.com>
+@author Cyril Levis <levis.cyril@gmail.com>, girst (https://gir.st/)
 
 SAMPLE OUTPUT
 {'color': '#00FF00', 'full_text': u'WWAN: Connected - Bouygues Telecom 4G (19%) -> 10.10.0.94'}
