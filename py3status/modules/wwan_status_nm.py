@@ -44,8 +44,6 @@ from pydbus import SystemBus
 
 STRING_WRONG_MODEM = "wrong or any modem"
 STRING_UNKNOW_OPERATOR = "unknow operator"
-DBUS_MODEM_PATH = 'Modem/'
-DBUS_BEARER_PATH = 'Bearer/'
 
 
 class Py3status:
