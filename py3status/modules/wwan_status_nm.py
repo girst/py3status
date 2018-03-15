@@ -6,6 +6,12 @@ based on ModemManager, NetworkManager and dbus.
 Configuration parameters:
     cache_timeout: How often we refresh this module in seconds.
         (default 5)
+    consider_3G_degraded: If set to True, only 4G-networks will be
+        considered 'good'; 3G connections are shown
+        as 'degraded', which is yellow by default. Mostly
+        useful if you want to keep track of where there
+        is a 4G connection.
+        (default False)
     format_down: What to display when the modem is down.
         (default 'WWAN: {status} - {operator} {netgen} ({signal}%)')
     format_error: What to display when the modem is not plugged in or on error.
@@ -18,8 +24,7 @@ Configuration parameters:
     (default 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip_address}')
     modem: The modem device to use. If None
         will use first find modem or
-        use 'busctl introspect org.freedesktop.ModemManager1 \
-            /org/freedesktop/ModemManager1/Modem/0'
+        'busctl introspect org.freedesktop.ModemManager1 /org/freedesktop/ModemManager1/Modem/0'
         and read '.EquipmentIdentifier')
         (default None)
 
@@ -54,6 +59,7 @@ class Py3status:
     """
     # available configuration parameters
     cache_timeout = 5
+    consider_3G_degraded = False
     format_down = 'WWAN: {status} - {operator} {netgen} ({signal}%)'
     format_error = 'WWAN: {status} - {error}'
     format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip}'
@@ -153,7 +159,10 @@ class Py3status:
                         data.update(network_config)
 
                         if data['ip']:
-                            color = self.py3.COLOR_GOOD
+                            if self.consider_3G_degraded and data['netgen'] != 'LTE':
+                                color = self.py2.COLOR_DEGRADED
+                            else:
+                                color = self.py3.COLOR_GOOD
                             full_text = self.py3.safe_format(
                                 self.format_up, data)
                         else:
