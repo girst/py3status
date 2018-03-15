@@ -12,7 +12,7 @@ Configuration parameters:
         (default 'WWAN: {status}')
         available placeholders {status}, {error}
     format_up: What to display upon regular connection
-    network available placeholders are {ip_address}, {ipv4_address}, {ipv4_dns1}, {ipv4_dns2},
+    network available placeholders are {ip}, {ipv4_address}, {ipv4_dns1}, {ipv4_dns2},
         {ipv6_address}, {ipv6_dns1}, {ipv6_dns2}
     wwan available placeholders are {status}, {operator}, {netgen}, {signal}
     (default 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip_address}')
@@ -45,6 +45,7 @@ from pydbus import SystemBus
 
 STRING_MODEMMANAGER_DBUS = 'org.freedesktop.ModemManager1'
 STRING_NO_MODEM = "no modem"
+STRING_NO_IP = "no ip"
 STRING_UNKNOW_OPERATOR = "unknow operator"
 
 
@@ -55,15 +56,15 @@ class Py3status:
     cache_timeout = 5
     format_down = 'WWAN: {status} - {operator} {netgen} ({signal}%)'
     format_error = 'WWAN: {status} - {error}'
-    format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip_address}'
+    format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip}'
     modem = None
 
     def post_config_hook(self):
         # network states dict
         self.states = {
-            0: "Connecting",
-            1: "Connecting",
-            2: "Connecting",
+            0: "Connecting",  #not sure
+            1: "Connecting",  #not sure
+            2: "Connecting",  #not sure
             3: "Disabled",
             4: "Disabling",
             5: "Home",
@@ -85,7 +86,7 @@ class Py3status:
             1024: '1XRTT',
             512: 'HSPA+',
             256: 'HSPA',
-            192: 'HSUPA',
+            192: 'HSUPA',  #not sure
             128: 'HSUPA',
             64: 'HSDPA',
             32: 'UMTS',
@@ -177,10 +178,10 @@ class Py3status:
                             data['ip_address'] = data['ipv6_address']
                         elif data['ipv4_address'] != '':
                             color = self.py3.COLOR_GOOD
-                            data['ip_address'] = data['ipv4_address']
+                            data['ip'] = data['ipv4_address']
                         else:
                             color = self.py3.COLOR_BAD
-                            data['ip_address'] = 'no network config'
+                            data['ip'] = STRING_NO_IP
 
                         full_text = self.py3.safe_format(self.format_up, data)
 
