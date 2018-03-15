@@ -63,9 +63,9 @@ class Py3status:
     def post_config_hook(self):
         # network states dict
         self.states = {
-            0: "Connecting",  #not sure
-            1: "Connecting",  #not sure
-            2: "Connecting",  #not sure
+            0: "Connecting",  # not sure
+            1: "Connecting",  # not sure
+            2: "Connecting",  # not sure
             3: "Disabled",
             4: "Disabling",
             5: "Home",
@@ -87,7 +87,7 @@ class Py3status:
             1024: '1XRTT',
             512: 'HSPA+',
             256: 'HSPA',
-            192: 'HSUPA',  #not sure
+            192: 'HSUPA',  # not sure
             128: 'HSUPA',
             64: 'HSDPA',
             32: 'UMTS',
