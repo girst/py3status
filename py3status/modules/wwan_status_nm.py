@@ -15,8 +15,8 @@ Configuration parameters:
     format_down: What to display when the modem is down.
         (default 'WWAN: {status} - {operator} {netgen} ({signal}%)')
     format_error: What to display when the modem is not plugged in or on error.
-        (default 'WWAN: {status}')
-        available placeholders {status}, {error}
+        (default 'WWAN: {error}')
+        available placeholder {error}
     format_up: What to display upon regular connection
     network available placeholders are {ip}, {ipv4_address}, {ipv4_dns1}, {ipv4_dns2},
         {ipv6_address}, {ipv6_dns1}, {ipv6_dns2}
@@ -68,19 +68,21 @@ class Py3status:
 
     def post_config_hook(self):
         # network states dict
+        # https://www.freedesktop.org/software/ModemManager/api/1.0.0/ModemManager-Flags-and-Enumerations.html#MMModemState
         self.states = {
-            0: "Connecting",  # not sure
-            1: "Connecting",  # not sure
-            2: "Connecting",  # not sure
-            3: "Disabled",
-            4: "Disabling",
-            5: "Home",
-            6: "Connecting",
-            7: "Searching",
-            8: "Registred",
-            9: "Connecting",
-            10: "Connecting",
-            11: "Connected"
+            -1: 'failed',
+            0:  'unknown',
+            1:  'initializing',
+            2:  'locked',
+            3:  'disabled',
+            4:  'disabling',
+            5:  'enabling',
+            6:  'enabled',
+            7:  'searching',
+            8:  'registered',
+            9:  'disconnecting',
+            10: 'connecting',
+            11: 'connected'
         }
 
         # network speed dict
@@ -102,6 +104,17 @@ class Py3status:
             1 << 12: 'EVDOA',
             1 << 13: 'EVDOB',
             1 << 14: 'LTE'
+        }
+
+        # network registration states
+        # https://www.freedesktop.org/software/ModemManager/api/1.0.0/ModemManager-Flags-and-Enumerations.html#MMModem3gppRegistrationState
+        self.rstates = {
+            0: 'IDLE',
+            1: 'HOME',
+            2: 'SEARCHING',
+            3: 'DENIED',
+            4: 'UNKNOWN',
+            5: 'ROAMING'
         }
 
     bus = SystemBus()
@@ -142,13 +155,14 @@ class Py3status:
                         data['signal'] = "?"
 
                     try:
-                        data['netgen'] = self.speed[status['access-technologies']]
+                        highest_access_bit = 1<<(status['access-technologies'].bit_length()-1)
+                        data['netgen'] = self.speed[highest_access_bit]
                     except:
                         data['netgen'] = "?"
 
                     # if registred on network, get operator name
                     try:
-                        if status['m3gpp-registration-state'] == 1:
+                        if self.rstates[status['m3gpp-registration-state']] in ('HOME', 'ROAMING'):
                             data['operator'] = status['m3gpp-operator-name']
                         else:
                             data['operator'] = STRING_UNKNOWN
@@ -184,8 +198,7 @@ class Py3status:
                         response['color'] = self.py3.COLOR_BAD
 
                 except:
-                    data['error'] = STRING_NO_MODEM
-                    data['status'] = self.states[status['state']]
+                    data['error'] = self.states[status['state']]
                     response['color'] = self.py3.COLOR_BAD
                     response['full_text'] = self.py3.safe_format(self.format_error, data)
 
