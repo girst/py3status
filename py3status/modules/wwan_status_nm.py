@@ -57,6 +57,7 @@ class Py3status:
     format_down = 'WWAN: {status} - {operator} {netgen} ({signal}%)'
     format_error = 'WWAN: {status} - {error}'
     format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip}'
+    format_no_service = 'WWAN: {operator} {netgen} ({signal}%)'
     modem = None
 
     def post_config_hook(self):
@@ -97,15 +98,15 @@ class Py3status:
             0: 'POTS'
         }
 
+    bus = SystemBus()
+
     def wwan_status_nm(self):
         response = {}
         data = {}
         response['cached_until'] = self.py3.time_in(self.cache_timeout)
 
-        bus = SystemBus()
-
         try:
-            modemmanager_proxy = bus.get(STRING_MODEMMANAGER_DBUS)
+            modemmanager_proxy = self.bus.get(STRING_MODEMMANAGER_DBUS)
             modems = modemmanager_proxy.GetManagedObjects()
         except:
             pass
@@ -113,7 +114,7 @@ class Py3status:
         # browse modems objects
         for objects in modems.items():
             modem_path = objects[0]
-            modem_proxy = bus.get(STRING_MODEMMANAGER_DBUS, modem_path)
+            modem_proxy = self.bus.get(STRING_MODEMMANAGER_DBUS, modem_path)
 
             # we can maybe choose another selector
             eqid = str(modem_proxy.EquipmentIdentifier)
@@ -143,47 +144,22 @@ class Py3status:
                     data['status'] = self.states[status['state']]
 
                     if status['state'] == 11:
-                        # Get ipv4 network config
-                        try:
-                            bearer = modem_proxy.Bearers[0]
-                            bearer_proxy = bus.get(STRING_MODEMMANAGER_DBUS,
-                                                   bearer)
-                            ipv4 = bearer_proxy.Ip4Config
-                            data['ipv4_address'] = ipv4['address']
-                            data['ipv4_dns1'] = ipv4['dns1']
-                            data['ipv4_dns2'] = ipv4['dns2']
 
-                        except:
-                            data['ipv6_address'] = ''
-                            data['ipv6_dns1'] = ''
-                            data['ipv6_dns2'] = ''
+                        # Get network config
+                        bearer = modem_proxy.Bearers[0]
+                        ip = self._get_ip(bearer)
 
-                        # Get ipv6 network config
-                        try:
-                            bearer = modem_proxy.Bearers[0]
-                            bearer_proxy = bus.get(STRING_MODEMMANAGER_DBUS,
-                                                   bearer)
-                            ipv6 = bearer_proxy.Ip6Config
-                            data['ipv6_address'] = ipv6['address']
-                            data['ipv6_dns1'] = ipv6['dns1']
-                            data['ipv6_dns2'] = ipv6['dns2']
+                        # Add network config to data dict
+                        data.update(ip)
 
-                        except:
-                            data['ipv6_address'] = ''
-                            data['ipv6_dns1'] = ''
-                            data['ipv6_dns2'] = ''
-
-                        if data['ipv6_address'] != '':
+                        if data['ip']:
                             color = self.py3.COLOR_GOOD
-                            data['ip_address'] = data['ipv6_address']
-                        elif data['ipv4_address'] != '':
-                            color = self.py3.COLOR_GOOD
-                            data['ip'] = data['ipv4_address']
+                            full_text = self.py3.safe_format(
+                                self.format_up, data)
                         else:
-                            color = self.py3.COLOR_BAD
-                            data['ip'] = STRING_NO_IP
-
-                        full_text = self.py3.safe_format(self.format_up, data)
+                            color = self.py3.COLOR_DEGRADED
+                            full_text = self.py3.safe_format(
+                                self.format_no_service, data)
 
                     # else disconnected
                     else:
@@ -199,6 +175,44 @@ class Py3status:
 
                 finally:
                     return {'full_text': full_text, 'color': color}
+
+    def _get_ip(self, bearer):
+        try:
+            bearer_proxy = self.bus.get(STRING_MODEMMANAGER_DBUS, bearer)
+
+            ipv4 = bearer_proxy.Ip4Config
+            ipv6 = bearer_proxy.Ip6Config
+
+            network_config = {}
+
+            if ipv4['address']:
+                network_config['ipv4_address'] = ipv4['address']
+                network_config['ipv4_dns1'] = ipv4['dns1']
+                network_config['ipv4_dns2'] = ipv4['dns2']
+                network_config['ip'] = ipv4['address']
+            else:
+                network_config['ipv4_address'] = ''
+                network_config['ipv4_dns1'] = ''
+                network_config['ipv4_dns2'] = ''
+                network_config['ip'] = STRING_NO_IP
+
+            # Get ipv6 network config
+            if ipv6['address']:
+                network_config['ipv6_address'] = ipv6['address']
+                network_config['ipv6_dns1'] = ipv6['dns1']
+                network_config['ipv6_dns2'] = ipv6['dns2']
+                network_config['ip6'] = ipv6['address']
+            else:
+                network_config['ipv6_address'] = ''
+                network_config['ipv6_dns1'] = ''
+                network_config['ipv6_dns2'] = ''
+                network_config['ip6'] = STRING_NO_IP
+
+        except:
+            pass
+
+        finally:
+            return network_config
 
 
 if __name__ == "__main__":
