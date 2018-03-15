@@ -6,10 +6,11 @@ based on ModemManager, NetworkManager and dbus.
 Configuration parameters:
     cache_timeout: How often we refresh this module in seconds.
         (default 5)
-    format_absent: What to display when the modem is not plugged in.
-    (default 'WWAN: {status}')
     format_down: What to display when the modem is down.
         (default 'WWAN: {status} - {operator} {netgen} ({signal}%)')
+    format_error: What to display when the modem is not plugged in or on error.
+        (default 'WWAN: {status}')
+        available placeholders {status}, {error}
     format_up: What to display upon regular connection
     network available placeholders are {ip_address}, {ipv4_address}, {ipv4_dns1}, {ipv4_dns2},
         {ipv6_address}, {ipv6_dns1}, {ipv6_dns2}
@@ -42,9 +43,9 @@ off
 
 from pydbus import SystemBus
 
-STRING_WRONG_MODEM = "wrong or any modem"
-STRING_UNKNOW_OPERATOR = "unknow operator"
 STRING_MODEMMANAGER_DBUS = 'org.freedesktop.ModemManager1'
+STRING_NO_MODEM = "no modem"
+STRING_UNKNOW_OPERATOR = "unknow operator"
 
 
 class Py3status:
@@ -52,8 +53,8 @@ class Py3status:
     """
     # available configuration parameters
     cache_timeout = 5
-    format_absent = 'WWAN: {status}'
     format_down = 'WWAN: {status} - {operator} {netgen} ({signal}%)'
+    format_error = 'WWAN: {status} - {error}'
     format_up = 'WWAN: {status} - {operator} {netgen} ({signal}%) -> {ip_address}'
     modem = None
 
@@ -190,9 +191,10 @@ class Py3status:
                         color = self.py3.COLOR_BAD
 
                 except:
+                    data['error'] = STRING_NO_MODEM
                     data['status'] = self.states[status['state']]
                     color = self.py3.COLOR_BAD
-                    full_text = self.py3.safe_format(self.format_absent, data)
+                    full_text = self.py3.safe_format(self.format_error, data)
 
                 finally:
                     return {'full_text': full_text, 'color': color}
