@@ -16,7 +16,8 @@ Configuration parameters:
     degraded_when_stale: color as degraded when updating failed (default True)
     format: display format for this module (default 'Mail: {unseen}')
     hide_if_zero: hide this module when no new mail (default False)
-    mailbox: name of the mailbox to check (default 'INBOX')
+    mailbox: name of the mailbox to check. can handle `%` and `*` wildcards
+        (default 'INBOX')
     password: login password (default None)
     port: number to use (default '993')
     read_timeout: timeout for read(2) syscalls (default 5)
@@ -332,6 +333,20 @@ class Py3status:
 
                 tmp_mail_count = 0
                 directories = self.mailbox.split(",")
+
+                # parse wildcards:
+                for directory in directories:
+                    if '*' in directory or '%' in directory:
+                        import csv
+                        ok, wildcard_dirs = self.connection.list(directory)
+                        if not ok:
+                            raise imaplib.IMAP4.error("mailbox contains bad wildcard")
+                        directories.push([
+                            next(csv.reader([dir.decode()], delimiter=' ', quotechar='"'))[-1]
+                            for dir in wildcard_dirs
+                        ])
+                        directories.remove(directory)
+                        self.use_idle = False # idle AND wildcards are not supported
 
                 for directory in directories:
                     self.connection.select(directory)
