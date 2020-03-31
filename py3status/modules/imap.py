@@ -247,7 +247,7 @@ class Py3status:
         finally:
             self.connection = None
 
-    def _idle(self):
+    def _idle(self, directories):
         """
         since imaplib doesn't support IMAP4r1 IDLE, we'll do it by hand
         """
@@ -259,7 +259,6 @@ class Py3status:
             command_tag = b"X" + bytes(str(self.command_tag).zfill(3), "ascii")
 
             # make sure we have selected anything before idling:
-            directories = self.mailbox.split(",")
             self.connection.select(directories[0])
 
             socket = self.connection.socket()
@@ -346,7 +345,6 @@ class Py3status:
                             for dir in wildcard_dirs
                         ])
                         directories.remove(directory)
-                        self.use_idle = False # idle AND wildcards are not supported
 
                 for directory in directories:
                     if self.connection.select(directory)[0] == "OK":
@@ -361,7 +359,7 @@ class Py3status:
 
                 if self.use_idle:
                     self.py3.update()
-                    self._idle()
+                    self._idle(directories)
                     retry_counter = 0
                 else:
                     return
