@@ -347,13 +347,14 @@ class Py3status:
                         ])
                         directories.remove(directory)
                         self.use_idle = False # idle AND wildcards are not supported
-                self.py3.log(directories)
 
                 for directory in directories:
                     if self.connection.select(directory)[0] == "OK":
                         unseen_response = self.connection.search(None, self.criterion)
                         mails = unseen_response[1][0].split()
                         tmp_mail_count += len(mails)
+                    else:
+                        directories.remove(directory)
 
                 self.mail_count = tmp_mail_count
                 self.network_error = None
