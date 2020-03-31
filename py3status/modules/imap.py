@@ -341,18 +341,19 @@ class Py3status:
                         ok, wildcard_dirs = self.connection.list(directory)
                         if not ok:
                             raise imaplib.IMAP4.error("mailbox contains bad wildcard")
-                        directories.push([
+                        directories.extend([
                             next(csv.reader([dir.decode()], delimiter=' ', quotechar='"'))[-1]
                             for dir in wildcard_dirs
                         ])
                         directories.remove(directory)
                         self.use_idle = False # idle AND wildcards are not supported
+                self.py3.log(directories)
 
                 for directory in directories:
-                    self.connection.select(directory)
-                    unseen_response = self.connection.search(None, self.criterion)
-                    mails = unseen_response[1][0].split()
-                    tmp_mail_count += len(mails)
+                    if self.connection.select(directory)[0] == "OK":
+                        unseen_response = self.connection.search(None, self.criterion)
+                        mails = unseen_response[1][0].split()
+                        tmp_mail_count += len(mails)
 
                 self.mail_count = tmp_mail_count
                 self.network_error = None
