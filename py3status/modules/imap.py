@@ -347,12 +347,14 @@ class Py3status:
                         directories.remove(directory)
 
                 for directory in directories:
-                    ok, _ = self.connection.select(directory)
+                    ok, _ = self.connection.select('"{}"'.format(directory))
                     if ok != "OK":
-                        raise imaplib.IMAP4.error("cannot select {}".format(directory))
-                    unseen_response = self.connection.search(None, self.criterion)
-                    mails = unseen_response[1][0].split()
-                    tmp_mail_count += len(mails)
+                        if self.debug:
+                            self.py3.log("cannot select {}".format(directory))
+                    else:
+                        unseen_response = self.connection.search(None, self.criterion)
+                        mails = unseen_response[1][0].split()
+                        tmp_mail_count += len(mails)
 
                 self.mail_count = tmp_mail_count
                 self.network_error = None
