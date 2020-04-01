@@ -247,7 +247,7 @@ class Py3status:
         finally:
             self.connection = None
 
-    def _idle(self, directories):
+    def _idle(self, directories=["INBOX"]):
         """
         since imaplib doesn't support IMAP4r1 IDLE, we'll do it by hand
         """
